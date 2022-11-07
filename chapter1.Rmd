@@ -1,7 +1,12 @@
-
 # About the project
 
-*Write a short description about the course and add a link to your GitHub repository here. This is an R Markdown (.Rmd) file so you should use R Markdown syntax.*
+I wanted to gain some knowledge in data analysis for quite a long time. I found this course by simply surfing through list of courses with open registration date. This is an amazing opportunity to learn basics of up to date data analysis from experts.
+
+The textbook is very well organized and easy to learn with. However it is always not so easy to digest the information about the tools you haven't used yet.
+
+## My github repository
+
+<https://github.com/SergeiRaik/IODS-project>
 
 ```{r}
 # This is a so-called "R chunk" where you can write R code.
@@ -9,5 +14,5 @@
 date()
 
 ```
-The text continues here.
+
 
