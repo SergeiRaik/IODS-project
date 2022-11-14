@@ -1,13 +1,120 @@
-# Insert chapter 2 title here
+# Regression and model validation
 
-*Describe the work you have done this week and summarize your learning.*
+## Introduction
 
-- Describe your work and results clearly. 
-- Assume the reader has an introductory course level understanding of writing and reading R code as well as statistical methods.
-- Assume the reader has no previous knowledge of your data or the more advanced methods you are using.
+This week I studied the regression models. Those are extremely important in data analysis as they bear several functions. They help us explain the relationship between variables and make a hypothesis how some parameters affect target variables. Another function is prediction. Using regression model we can predict unknown values of target variable by a set of explanatory vatiables. Here we used a dataset derived from 2014 year questionare aimed at identifying how various learning strategies (deep, surface and strategic) affect learning outcome (exam points).
+
+## 1. Import the dataset from file.
 
 ```{r}
-date()
+# import necessary packages
+library(ggplot2)
+library(dplyr)
+library(GGally)
+library(tidyverse)
+
+#import dataset from file and set proper column types
+learning2014 <- read_csv("data/learning2014.csv", col_types = cols(.default = "n", age = "i", gender = "f", points = "i"))
 ```
 
-Here we go again...
+## 2. Dataset structure.
+
+```{r}
+str(learning2014) #stucture of the dataset
+dim(learning2014) # dimensions of the dataframe
+```
+
+The dataset consists of 7 variables and 166 observations. The variable **gender**, which is 2 levels factor is respondents' gender. Integers **age** and **points** are respondents' age in years, and exam points respectively. Numerical variables **attitude**, **deep**, **stra**, and **surf** are derived from respondents' answers and scaled to 0-5 points scale. More information on the data can be found [here](https://www.mv.helsinki.fi/home/kvehkala/JYTmooc/JYTOPKYS2-meta.txt). Briefly they represent three learning strategies (deep, surface and strategic) and general attitude towards statistics.
+
+## 3. Overview of the data.
+
+First let's take a look on the summary of each variable.
+
+```{r}
+summary(learning2014) # dataframe summary
+```
+
+It can be seen that data related to learning strategies and attitude has the same range (0-5). The number of female participants is twice as high as male.
+
+Let's try to plot variables with each other and try to visually observe any correlation.
+
+```{r}
+pairs(learning2014[-1]) # plot every variable against each other excluding 1st column (gender)
+```
+
+Due to high variation it is hard to visually observe any correlation from plots. We can therefore compare data using the ggpairs() function from ggplot2 library which provides also variable distribution plots and correlation coefficients.
+
+```{r}
+# create a more advanced plot matrix with ggpairs()
+ggpairs(learning2014, mapping = aes(alpha = 0.3, col = gender), lower = list(combo = wrap("facethist", bins = 20)))
+```
+
+From variables distribution graphs shape we can conclude that all of them except age have more or less symmetrical bell shape. To prove that let's make a [QQ plot](https://www.statology.org/q-q-plot-normality/) for each variable. Simply said, QQ plot compares the distribution with the normal distribution. The graph should be linear if two normally distributed values are compares.
+
+```{r}
+par(mfrow = c(2,3)) # create a plot matrix
+qqplot(learning2014$age # create a qq-plot for each variable to check if it is normally distributed
+       , rnorm(50))
+qqplot(learning2014$attitude
+       , rnorm(50))
+qqplot(learning2014$deep
+       , rnorm(50))
+qqplot(learning2014$stra
+       , rnorm(50))
+qqplot(learning2014$surf
+       , rnorm(50))
+qqplot(learning2014$points
+       , rnorm(50))
+```
+
+Indeed, we can see that age is not normally distributed here. Other plots are linear.
+
+## 4. Regression model
+
+Let's create a linear regression model where exam points are target variable and explanatory variables would be attitude, stra and surf, based on their correlation coefficients from previous section.
+
+```{r}
+# create a multivariable regression model
+my_model <- lm(points ~ attitude + stra + surf, data = learning2014)
+# create a model summary
+summary(my_model)
+```
+
+From p-values we can conclude that the attitude has the highest influence on the target variable. stra and surf are insignificant. Therefore we can simplify the model to a single parameter without losing much predictability.
+
+```{r}
+# create a simplified model with single variable
+my_model2 <- lm(points ~ attitude, data = learning2014)
+# create a model summary
+summary(my_model2)
+```
+
+Indeed, the R-squared decreased roughly from 0.20 to 0.19. However both models are not very precise as they explain \~20 % of points variability. From the regression model it can be concluded that global attitude towards statistics positively correlates with exam outcome, however the influence is not very large.
+
+## 5. Diagnostic plots
+
+Let's have a look at the plot of exam points vs attitude.
+
+```{r}
+qplot(attitude, points, data = learning2014) + geom_smooth(method = "lm") # points vs attitude linear plot
+```
+
+Our linear model suggests that there is linear relationship between exam points and general attitude towards statistics. To prove that we can make diagnostic plots.
+
+```{r}
+plot(my_model2, which = 1) # residuals vs fitted 
+```
+
+Residuals vs. fitted plot shows the difference between observed and fitted values. If the observed value equals exactly the predicted value, the residual value is zero. From our plot we can conclude that the assumption that the relationship is linear is reasonable as residuals are randomly distributed around the zero line. We can also observe values that do not fit the model: in observations 35, 56 and 145 students got unexpectedly low exam points despite their high attitude.
+
+```{r}
+plot(my_model2, which = 2) # QQ-plot
+```
+
+To check if the residuals are distributed normally, we made a QQ-plot where quantiles of residuals distribution are plotted against theoretical normal distribution quantiles. In our case the graph is fairly linear, however there is some deviation at its extremes.
+
+```{r}
+plot(my_model2, which = 5) # residuals vs leverage plot
+```
+
+The Residuals vs Leverage plot shows us that none of the points fall outside the Cook's distance, and therefore can not be considered influential observations.

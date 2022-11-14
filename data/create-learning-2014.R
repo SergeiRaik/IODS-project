@@ -52,10 +52,10 @@ learning2014 <- filter(learning2014, points > 0)
 
 str(learning2014)
 # save new dataset as  csv file
-write_csv(learning2014, "learning2014.csv")
+write_csv(learning2014, "data/learning2014.csv")
 
 #read csv file, specify column types
-learning2014 <- read_csv("learning2014.csv", col_types = cols(.default = "n", age = "i", gender = "f"))
+learning2014 <- read_csv("data/learning2014.csv", col_types = cols(.default = "n", age = "i", gender = "f", points = "i"))
 
 # check the structure of the imported dataset
 str(learning2014)
