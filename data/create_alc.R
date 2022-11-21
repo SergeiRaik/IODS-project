@@ -69,3 +69,4 @@ glimpse(alc)
 
 # write modified dataset as a csv file
 write_csv(alc, "data/alc.csv")
+

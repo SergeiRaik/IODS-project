@@ -1,0 +1,133 @@
+# Logistic regression
+
+## Introduction
+
+This week we were working on a logistic regression. This is the method of estimation the relationships between categorical variables. This method is an extension of linear regression. The dataset we've been working with is describing student achievement in secondary education of two Portuguese schools. The dataset includes information regarding family status, school performance, spare time, alcohol consumption etc. The complete description is published on the [UCI Machine Learning Repository](https://archive.ics.uci.edu/ml/datasets/Student+Performance).
+
+## 1. Dataset structure
+
+Let's import the wrangled dataset and take a look at it's structure.
+
+```{r}
+# import necessary packages
+library(ggplot2)
+library(dplyr)
+library(GGally)
+library(tidyverse)
+
+#import dataset from file and set proper column types
+alc <- read_csv("data/alc.csv", show_col_types = FALSE, col_types = cols(.default = "f", age = "i", Medu = "i", Fedu = "i", traveltime = "i", studytime = "i", famrel = "i", freetime = "i", goout = "i", Dalc = "i", Walc = "i", health = "i", failures = "n", absences = "n", G1 = "n", G2 = "n", G3 = "n", alc_use = "n", high_use = "l"))
+
+#check dataset structure, dimensions and column types
+glimpse(alc)
+```
+
+The dataset consists of 35 variables and 370 observations.
+
+## 2. Variables relationship hypotheses
+
+**Hypothesis 1** People involved in romantic relationships are less likely to be heavy drinkers.
+
+```{r}
+alc %>% group_by(romantic,high_use) %>% summarise(count = n())
+```
+
+```{r}
+g <- ggplot(data = alc, aes(x=high_use))
+g+facet_wrap("romantic")+geom_bar()
+
+```
+
+From both tabular and visual summary it is obvious that within both groups (single and people in relationships) the fraction of those who consume large amounts of
+
+**Hypothesis 2** People who go out with friends more often tend to drink more.
+
+```{r}
+# group by frequency of going out and alcohol coonsumption
+alc %>% group_by(goout,high_use) %>% summarise(count = n())
+```
+
+```{r}
+g <- ggplot(data = alc, aes(x=high_use))
+g+facet_wrap("goout")+geom_bar()
+```
+
+Indeed, it is clearly seen that those who go out with friends more often, tend to drink more.
+
+**Hypothesis 3** People who spend more time studying, don't have time for drinking.
+
+```{r}
+alc %>% group_by(studytime,high_use) %>% summarise(count = n())
+```
+
+The correlation can be observed here as well. As you can see, within group of students who spend less than 2 hours for studying, there's almost a half of "heavy drinkers", whereas for those who study more than 10 hours, it decreases to \~14 %.
+
+```{r}
+g <- ggplot(data = alc, aes(x=high_use))
+g+facet_wrap("studytime")+geom_bar()
+```
+
+**Hypothesis 4** People who consume large amounts of alcohol, have lower grades.
+
+To analyze grades, we first take an average of three grades and then compare the distributions across groups of people who consume alcohol a lot and a bit.
+
+```{r}
+alc$grades <- rowMeans(alc[, c("G1","G2","G3")])
+g <- ggplot(data = alc, aes(x=high_use, y = grades))
+g + geom_boxplot()
+```
+
+From boxplot graph it is not obvious whether alcohol consumption have an effect on grades. It seems that for low-drinkers the distribution is broader and the mean value is higher whereas for high-drinkers the distribution of grades is tilted towards lower values.
+
+```{r}
+
+alc %>% group_by(high_use) %>% summarise(mean(grades))
+```
+
+Mean values of grades differ not that much. Let's take a look at each distribution separately.
+
+```{r}
+g <- ggplot(data = alc, aes(x=grades))
+g + geom_density(alpha=0.2)+facet_grid(~high_use)
+```
+
+Here it seems that for low-drinkers there is a bimodal distribution. The mode with higher grades is absent in case of high-drinkers. However we'll see whether the mentioned parameters are significant or not in regression model.
+
+## 3. Logistic regression model
+
+To begin with we create a model of high_use as a target variable and those mentioned in the hypotheses section as explanatory variables (grades, studytime, goout, romantic),
+
+```{r}
+# create a logistic model and it's summary
+m <- glm(high_use ~ grades + studytime + goout + romantic, data = alc, family = "binomial")
+summary(m)
+```
+
+```{r}
+# compute odds ratios (OR)
+OR <- coef(m) %>% exp
+
+# compute confidence intervals (CI)
+CI <- confint(m) %>% exp
+
+# print out the odds ratios with their confidence intervals
+cbind(OR, CI)
+```
+
+When the odds ratio is close to 1, it means that changing explanatory variable the odds of target variable does not change. Grades and romantic relationships with OR of 0.95 and 0.83 respectively do not correlate with alcohol consumption. Meanwhile each point of 'goout' variable doubles alcohol consumption odds. On the contrary each point of studytime decreases alcohol consumption odds by half.
+
+## 4. Predictive power of the model
+
+Let's use our model for prediction of alcohol consumption level by calculating the probability of high_use with predict() function.
+
+```{r}
+#calculate the probabilities of high_use using logistic model
+probabilities <- predict(m, type = "response")
+alc <- mutate(alc, probability = probabilities)
+
+#prediction is true if probability > 0.5
+alc <- mutate(alc, prediction = probability>0.5) 
+alc %>% group_by(high_use,prediction) %>% summarise(count = n())
+```
+
+From the summarizing table we can conclude that when model predicts low level of alcohol consumption (FALSE), it is correct in 238 / (238 + 70) = 77 %. When high - 41 / (41 + 21) = 66 %. Overall the model prediction is wrong in (21 + 70) / (238 + 21 + 70 + 41) = 25 %. Overall if we compare the model with simple guessing strategy (0.5 % probability), it produces 25 % less wrong predictions which is not bad considering small number of variables taken.
