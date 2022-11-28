@@ -1,0 +1,219 @@
+# Clustering and classification
+
+## Introduction
+
+The dataset we are exploring today contains information about different suburban areas near Boston. It includes information about environmental conditions of touns, population, characteristics of housing and transportation, crime rate etc. The full description can be found [here](https://stat.ethz.ch/R-manual/R-devel/library/MASS/html/Boston.html).
+
+## 1. Loading the dataset
+
+Let's load necessary libraries and the Boston dataset
+
+```{r}
+# access the MASS package
+library(MASS)
+library(tidyverse)
+# load the data
+data("Boston")
+```
+
+```{r}
+#explore structure and dimensions 
+glimpse(Boston)
+```
+
+The dataset consists of 14 variables and 506 observations.
+
+## 2. Visualization of variables and correlations
+
+Analyzing datasets it is always useful to have a look at variables distributions. To do that, we first convert data from **wide format** to **long format** (variable-value dictionary) using melt() function from reshape library. Then we visualize distributions using ggplot2 library.
+
+```{r}
+library(ggplot2)
+library(reshape)
+melt.boston <- melt(Boston)
+
+ggplot(data = melt.boston, aes(x = value)) + 
+stat_density() + 
+facet_wrap(~variable, scales = "free")
+```
+
+```{r}
+library(MASS)
+library(tidyr)
+library(corrplot)
+# calculate the correlation matrix and round it
+cor_matrix <- cor(Boston) 
+
+# print the correlation matrix
+cor_matrix %>% 
+  round(digits = 2)
+
+# visualize the correlation matrix
+corrplot(cor_matrix, method="circle", type = "upper", cl.pos = "b", tl.pos = "d", tl.cex = 0.6)
+```
+
+## 3. Scaling the dataset 
+
+To scale the dataset we substract each variable mean value and divide by standard deviation (SD).
+
+```{r}
+# center and standardize variables
+boston_scaled <- scale(Boston)
+
+# summaries of the scaled variables
+summary(boston_scaled)
+
+# class of the boston_scaled object
+class(boston_scaled)
+
+# change the object to data frame
+boston_scaled <- as.data.frame(boston_scaled)
+
+```
+
+As a result of scaling the dataset, we derivatized variables in a following way. Mean value is zero and observations that deviate from mean by SD, is set to ±1.
+
+## 4. Turning crime rate into categorical variable
+
+To build up a model for prediction of crime rate we have to first turn it into categorical variable. To do that we make a quantile vector with the corresponding function.
+
+```{r}
+# create a quantile vector of crim and print it
+bins <- quantile(boston_scaled$crim)
+bins
+```
+
+Then we break the crim variable into 5-level factor, add substitute the initial variable in the scaled dataset.
+
+```{r}
+crime <- cut(boston_scaled$crim, breaks = bins, include.lowest = TRUE, label = c("low", "med_low", "med_high", "high"))
+
+# remove original crim from the dataset
+boston_scaled <- dplyr::select(boston_scaled, -crim)
+
+# add the new categorical value to scaled data
+boston_scaled <- data.frame(boston_scaled, crime)
+```
+
+## 5. LDA model
+
+Then we have to split the dataset into train and test samples.
+
+```{r}
+# number of rows in the Boston dataset 
+n <- nrow(boston_scaled)
+
+# choose randomly 80% of the rows
+ind <- sample(n,  size = n * 0.8)
+
+# create train set
+train <- boston_scaled[ind,]
+
+# create test set 
+test <- boston_scaled[-ind,]
+
+# save the correct classes from test data
+correct_classes <- test$crime
+
+# remove the crime variable from test data
+test <- dplyr::select(test, -crime)
+```
+
+```{r}
+
+# linear discriminant analysis
+lda.fit <- lda(crime ~ ., data = train)
+# print the lda.fit object
+lda.fit
+# the function for lda biplot arrows
+lda.arrows <- function(x, myscale = 1, arrow_heads = 0.1, color = "red", tex = 0.75, choices = c(1,2)){
+  heads <- coef(x)
+  arrows(x0 = 0, y0 = 0, 
+         x1 = myscale * heads[,choices[1]], 
+         y1 = myscale * heads[,choices[2]], col=color, length = arrow_heads)
+  text(myscale * heads[,choices], labels = row.names(heads), 
+       cex = tex, col=color, pos=3)
+}
+# target classes as numeric
+classes <- as.numeric(train$crime)
+# plot the lda results
+plot(lda.fit, dimen = 2, col = classes, pch = classes)
+lda.arrows(lda.fit, myscale = 2)
+
+```
+
+From the LDA plot we can clearly see that observations with high crime rate are very well separated. Others are overlapping which will clearly affect the prediction power of the model.
+
+```{r}
+# predict classes with test data
+lda.pred <- predict(lda.fit, newdata = test)
+# cross tabulate the results
+table(correct = correct_classes, predicted = lda.pred$class)
+```
+
+Indeed, as you can see, the best results are obtained for high cluster, whereas for others there are a lot of false predictions.
+
+```{r}
+data('Boston')
+bst <- scale(Boston) 
+bst <- as.data.frame(bst) 
+dist_eu <- dist(bst) 
+```
+
+```{r}
+km <- kmeans(x = bst, centers = 3)
+```
+
+Then we determine the optimal number of clusters by calculating the total sum of squares.
+
+```{r}
+set.seed(21) 
+#set the max clusters numbers
+k_max <- 10 
+
+#calculate the total sum of squares
+twcss <- sapply(1:k_max, function(k){kmeans(bst, k)$tot.withinss}) 
+library(ggplot2)
+qplot(x = 1:k_max, y = twcss, geom = 'line') 
+```
+
+The total WCSS decreases dramatically at 2 which means it is the optimal number of clusters.
+
+Lets run the code again and plot it:
+
+```{r}
+
+km <-kmeans(bst, centers = 2)
+pairs(bst, col = km$cluster)
+```
+
+## Super bonus 3D plots
+
+```{r}
+model_predictors <- dplyr::select(train, -crime)
+# check the dimensions
+dim(model_predictors)
+dim(lda.fit$scaling)
+# matrix multiplication
+matrix_product <- as.matrix(model_predictors) %*% lda.fit$scaling
+matrix_product <- as.data.frame(matrix_product)
+```
+
+First we set the color to be the crime classes of the train set. 
+
+```{r}
+
+library(plotly)
+plot_ly(x = matrix_product$LD1, y = matrix_product$LD2, z = matrix_product$LD3, type= 'scatter3d', mode='markers', color = train$crime)
+
+```
+
+Second we make the color be defined by the clusters of the k-means
+
+```{r}
+km1 <- dplyr::select(train, -crime)
+km1 <- kmeans(km1, centers = 4)
+plot_ly(x = matrix_product$LD1, y = matrix_product$LD2, z = matrix_product$LD3, type= 'scatter3d', mode='markers', color = km1$cluster)
+```
+
+The clusters are more or less similar, however observations with higher crime rate are better separated when using crime class.
