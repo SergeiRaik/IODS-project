@@ -1,0 +1,114 @@
+# Dimensionality reduction techniques
+
+## Introduction
+
+This week we are working with dataset derived from the United Nations Development Programme data. It describes certain parameters related to quality of life and gender equality in different countries.
+
+It includes information on distribution of men and women in such fields as education, politics, labor, data on adolescent birthrate, maternal mortality, GNI per capita and life expectancy. Full description can be found [here](https://github.com/KimmoVehkalahti/Helsinki-Open-Data-Science/blob/master/datasets/human_meta.txt)
+
+```{r}
+library(tidyverse)
+library(GGally)
+library(corrplot)
+human <- read.csv("./data/human.csv", row.names = 1)
+```
+
+## 1. Overview of the data
+
+```{r}
+summary(human)
+ggpairs(human)
+cor(human) %>% corrplot(method="circle", type = "upper", cl.pos = "b", tl.pos = "d", tl.cex = 0.6)
+```
+
+Speaking about the variables distribution, some of them are distributed normally with more or less symmetrical bell shape (female fraction in parliament, ratios in labor and secondary education, years of schooling). Fortunately the data is skewed to higher life expectancy and lower maternal mortality rate.
+
+Some strong correlations are observed between variables.\
+In countries with higher GNI per capita life expectancy and years of schooling are also higher. On the contrary in more "poor" countries there is high adolescent birth rate and high level of maternal death rate. That fact can be possibly explained with lower level of public medical services in countries with low GNI. Obviously in countries with high adolescent birth rate fraction of women in secondary education is lower. Possibly it is due too these countries are generally characterized by highly traditionalist patriarchal society.
+
+## 2. Principal component analysis
+
+PCA is a statistical method used to reduce the dimensionality of large datasets. Principle components are calculated in such a way that they represent the highest possible variance in the dataset.
+
+However the method is sensitive to variables variation, therefore it is important to standartize the data. To illustrate that we perform PCA on both scaled and raw data.
+
+### 2.1 Non-standardized data
+
+```{r}
+# perform principal component analysis (with the SVD method) on raw dataset
+pca_human <- prcomp(human)
+
+summary(pca_human)
+```
+
+As you can see from the summary, almost 100 % of the variance is from PC1 component, and the GNI is parallel to PC1 axis. The reason is that the GNI variable is in a scale of thousands and influences calculations a lot.
+
+```{r}
+biplot(pca_human, choices = 1:2, cex = c(0.8, 1), col = c("grey40", "deeppink2"))
+```
+
+### 2.2 PCA of scaled data
+
+To get rid of the influence of data variation, we scale the dataset as in previous week assignment (substract each variable mean value and divide by standard deviation). By doing that we make each variable mean value a zero and scale the standart deviation making it 1.
+
+```{r}
+
+# scale the dataset
+human_std <- scale(human)
+# print out summaries of the standardized variables
+summary(human_std)
+# perform principal component analysis (with the SVD method)
+pca_human <- prcomp(human_std)
+```
+
+```{r}
+
+# draw a biplot of the principal component representation and the original variables
+biplot(pca_human, choices = 1:2, cex = c(0.8, 1), col = c("grey40", "deeppink2"))
+
+summary(pca_human)
+```
+
+As you can see now PC1 contributes to around half of the variation and the PC2 -- to 16 %.
+
+Information we get from the plot is pretty similar to that we got by simple cross-correlation. Orthogonal vectors here represent lack of correlation. The closer an angle is to 0, the higher is correlation. If it's around 180 degrees, there is a negative correlation.\
+We clearly see that GNI per capita has strong correlation with life expectancy and quality and availability of education. Those variables negatively correlate with high level of adolescent births and maternal death.
+
+Interestingly mentioned variables are almost independent on the distribution of males and females on labor market and in politics.
+
+## 3. Multiple correspondence analysis
+
+To perform the MCA we use the dataset describing people's habits in tea consumption.
+
+The variables are mostly self-explanatory. They describe how respondents drink tea (18 variables), what are their product's perception (12 variables) and some personal details. Overall there are 35 factors and one integer (age). There are 300 observations in the dataset.
+
+```{r}
+tea <- read.csv("https://raw.githubusercontent.com/KimmoVehkalahti/Helsinki-Open-Data-Science/master/datasets/tea.csv", stringsAsFactors = TRUE)
+view(tea)
+
+summary(tea)
+
+str(tea)
+```
+
+```{r}
+
+library(FactoMineR)
+# column names to keep in the dataset
+keep_columns <- c("Tea", "How", "how", "sugar", "breakfast", "dinner")
+
+# select the 'keep_columns' to create a new dataset
+tea_time <- dplyr::select(tea, one_of(keep_columns))
+
+# multiple correspondence analysis
+mca <- MCA(tea_time, graph = FALSE)
+# summary of the model
+summary(mca)
+```
+
+```{r}
+# visualize MCA
+plot(mca, invisible=c("ind"), habillage = "quali")
+```
+
+The distance between points here indicates measure of similarity between variables. We can conclude that green tea is very unlikely to come with milk, whereas Earl Grey commonly goes with sugar and lemon.

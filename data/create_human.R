@@ -39,3 +39,35 @@ glimpse(human)
 #save dataset
 write_csv(human, "data/human.csv")
 
+# Week 5 wrangling
+# let's load the dataset from the web to ensure it's correct
+human <- read_csv("https://raw.githubusercontent.com/KimmoVehkalahti/Helsinki-Open-Data-Science/master/datasets/human1.txt")
+
+human$GNI <- as.numeric(human$GNI)
+sapply(human, class)
+
+#list of Columns to keeep
+keepcol <- c("Country", "Edu2.FM", "Labo.FM", "Edu.Exp", "Life.Exp", "GNI", "Mat.Mor", "Ado.Birth", "Parli.F") 
+
+#keep selected columns
+human <- dplyr::select(human, one_of(keepcol)) 
+
+#exclude observations with missing values
+human <- drop_na(human)
+
+#the last 7 observations relate to regions. We exclude them
+human <- human[1:155, ]
+
+#save country names to a new variable (for some reason rownames are deleted after Countries column removal)
+country <- human$Country
+
+# remove Country column
+human <- dplyr::select(human, -Country)
+
+#set countries as rownames
+rownames(human) <-  country
+
+write.csv(human, "data/human.csv", row.names = TRUE)
+
+#for some reasons it doesn't read rownames
+test <- read.csv("data/human.csv")
