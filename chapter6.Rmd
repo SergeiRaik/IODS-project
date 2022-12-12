@@ -175,6 +175,8 @@ summary(BPRS_ref)
 
 ### Random intercept and slope model
 
+This model allows to perform linear regression with varying both intercept and slope.
+
 ```{r}
 BPRS_ref2 <- lmer(bprs ~ week + treatment + (week | subject), data = BPRSL, REML = FALSE) 
 summary(BPRS_ref2)
@@ -185,6 +187,8 @@ Here we observe that BPRS value is negatively correlated with time of treatment.
 ```{r}
 anova(BPRS_ref2, BPRS_ref)
 ```
+
+Plotting the fitted values.
 
 ```{r}
 # Create a vector of the fitted values
@@ -204,3 +208,5 @@ ggplot(BPRSL, aes(x = week, y = fitted, linetype = subject)) +
   scale_y_continuous(limits = c(min(BPRSL$fitted), max(BPRSL$fitted)))
 
 ```
+
+This plot gives a good overview on how different patients responded to the treatment. Basically in both cases there were people who responded faster and slower.

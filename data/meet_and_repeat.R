@@ -30,7 +30,7 @@ BPRSL <-  BPRS %>% gather(key = weeks, value = bprs, -treatment, -subject)
 BPRSL <-  BPRSL %>% mutate(week = as.integer(substr(weeks, 5,5))) 
 RATSL <- RATS %>% gather(key = WD, value = Weight, -ID, -Group) %>% mutate(Time = as.integer(substr(WD,3,4))) 
 
-
+#overview of long type data
 names(BPRSL)
 names(RATSL)
 str(BPRSL)
@@ -38,8 +38,11 @@ str(RATSL)
 summary(BPRSL)
 summary(RATSL)
 
+#here similar variables were transformed to observations
+
 #writing the files to the folder
 write.csv(RATSL, file = "data/RATSL.csv")
 write.csv(RATS, file = "data/RATS.csv")
 write.csv(BPRSL, file = "data/BPRSL.csv")
 write.csv(BPRS, file = "data/BPRS.csv")
+
