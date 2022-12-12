@@ -1,0 +1,206 @@
+# Analysis of longitudinal data
+
+## Introduction
+
+This week we're working with longitudinal data using two datasets as an example.
+
+The RATS one is from a nutritional study where experimental animals were divided into three groups and were on different diets.
+
+The BPRS one is from a psychiatric study where subjects were randomly assigned to one of two treatment groups and each subject was rated on the brief psychiatric rating scale (BPRS) measured before treatment began (week 0) and then at weekly intervals for eight weeks.
+
+## Part I
+
+Loading the long form of RATS dataset and necessary libraries.
+
+```{r}
+RATSL <- read.csv("./data/RATSL.csv", row.names = 1)
+library(dplyr)
+glimpse(RATSL)
+```
+
+R doesn't automatically read the variables as factors. We need to convert them manually
+
+```{r}
+RATSL$ID <- factor(RATSL$ID)
+RATSL$Group <- factor(RATSL$Group)
+glimpse(RATSL)
+```
+
+By plotting the data we can observe that in group 1 animals are much more light than in other two where the weight is comparable.
+
+```{r}
+library(ggplot2)
+ggplot(RATSL, aes(x = Time, y = Weight, linetype = ID)) +
+  geom_line() +
+  scale_linetype_manual(values = rep(1:10, times=4)) +
+  facet_grid(. ~ Group, labeller = label_both) +
+  theme(legend.position = "none") + 
+  scale_y_continuous(limits = c(min(RATSL$Weight), max(RATSL$Weight)))
+```
+
+In all groups weight increases over time.
+
+```{r}
+# scale the weight
+RATSL <- RATSL %>%
+  group_by(Time) %>%
+  mutate(stdweight = (Weight - mean(Weight))/sd(Weight)) %>%
+  ungroup()
+```
+
+```{r}
+#plot the scaled data
+ggplot(RATSL, aes(x = Time, y = stdweight, linetype = ID)) +
+  geom_line() +
+  scale_linetype_manual(values = rep(1:10, times=4)) +
+  facet_grid(. ~ Group, labeller = label_both) +
+  scale_y_continuous(name = "stdweight")
+```
+
+Scaled data provides quite a similar information. However we can clearly observe those animals who gain weight slower than others therefore the value of scaled weight decreases.
+
+```{r}
+n <- RATSL$Time %>% unique() %>% length()
+#Creating derived dataset with mean and standard error
+RATSS <- RATSL %>%
+  group_by(Group, Time) %>%
+  summarise(mean = mean(Weight), se = sd(Weight)/sqrt(n)) %>%
+  ungroup()
+```
+
+```{r}
+glimpse(RATSS)
+```
+
+```{r}
+
+ggplot(RATSS, aes(x = Time, y = mean, linetype = Group, shape = Group)) +
+  geom_line() +
+  scale_linetype_manual(values = c(1,2,3)) +
+  geom_point(size=3) +
+  scale_shape_manual(values = c(1,2,3)) +
+geom_errorbar(aes(ymin=mean-se, ymax=mean+se, linetype="1"), width=0.3) +
+  theme(legend.position = c(0.9,0.5)) +
+  scale_y_continuous(name = "mean (Weight) ± se (Weight)")
+```
+
+As we can see from here, the mean values in all groups increase over time and all groups significantly differ from each other.
+
+```{r}
+RATSLS2 <- RATSL %>%
+  group_by(Group, ID) %>%
+  summarise( mean=mean(Weight) ) %>%
+  ungroup()
+
+glimpse(RATSLS2)
+```
+
+```{r}
+ggplot(RATSLS2, aes(x = Group, y = mean)) +
+  geom_boxplot() +
+  stat_summary(fun = "mean", geom = "point", shape=23, size=4, fill = "blue") +
+  scale_y_continuous(name = "mean(Weight)")
+```
+
+From the boxplot we can observe an outlier point.
+
+Let's remove it.
+
+```{r}
+#remove outlier
+RATSLS2 <- RATSLS2 %>%
+  filter(mean < 550)
+```
+
+```{r}
+ggplot(RATSLS2, aes(x = Group, y = mean)) +
+  geom_boxplot() +
+  stat_summary(fun = "mean", geom = "point", shape=23, size=4, fill = "blue") +
+  scale_y_continuous(name = "mean(Rats)")
+```
+
+```{r}
+res.aov <- aov(mean ~ Group, data = RATSLS2)
+summary(res.aov)
+```
+
+## Part II
+
+Importing the long form of BPRS dataset.
+
+```{r}
+BPRSL <- read.csv("./data/BPRSL.csv", row.names = 1)
+```
+
+```{r}
+library(dplyr)
+glimpse(BPRSL)
+```
+
+Set subject and treatment as factors
+
+```{r}
+BPRSL$subject <- factor(BPRSL$subject)
+BPRSL$treatment <- factor(BPRSL$treatment)
+```
+
+```{r}
+library(ggplot2)
+ggplot(BPRSL, aes(x = week, y = bprs, linetype = subject)) +
+  geom_line() +
+  scale_linetype_manual(values = rep(1:10, times=4)) +
+  facet_grid(. ~ treatment, labeller = label_both) +
+  theme(legend.position = "none") + 
+  scale_y_continuous(limits = c(min(BPRSL$bprs), max(BPRSL$bprs)))
+```
+
+It is hard to tell whether there is any difference in two treatments. It seams that in both cases BPRS value decreases.
+
+### Regression model
+
+```{r}
+BPRS_reg <- lm(bprs ~ week + treatment, data = BPRSL)
+summary(BPRS_reg)
+```
+
+From linear regression model we can conclude that time of treatment decreases the BPRS, whereas treatment type is not significant.
+
+### Random intercept model
+
+```{r}
+library(lme4)
+BPRS_ref <- lmer(bprs ~ week + treatment + (1 | subject), data = BPRSL, REML = FALSE) 
+summary(BPRS_ref)
+```
+
+### Random intercept and slope model
+
+```{r}
+BPRS_ref2 <- lmer(bprs ~ week + treatment + (week | subject), data = BPRSL, REML = FALSE) 
+summary(BPRS_ref2)
+```
+
+Here we observe that BPRS value is negatively correlated with time of treatment. The treatment type contribution in variatioon is only around 25%.
+
+```{r}
+anova(BPRS_ref2, BPRS_ref)
+```
+
+```{r}
+# Create a vector of the fitted values
+Fitted <- fitted(BPRS_ref2)
+
+# Create a new column fitted to RATSL
+
+BPRSL <- mutate(BPRSL, fitted = Fitted)
+
+# draw the plot of BPRSlL with the Fitted values of weight
+
+ggplot(BPRSL, aes(x = week, y = fitted, linetype = subject)) +
+  geom_line() +
+  scale_linetype_manual(values = rep(1:10, times=4)) +
+  facet_grid(. ~ treatment, labeller = label_both) +
+  theme(legend.position = "none") + 
+  scale_y_continuous(limits = c(min(BPRSL$fitted), max(BPRSL$fitted)))
+
+```
